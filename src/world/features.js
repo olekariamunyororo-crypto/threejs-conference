@@ -28,6 +28,8 @@ export const FEATURES = {
   audio: true,
   // Available in production too; setupInspector hides advanced panels outside DEV.
   inspector: true,
+  /** Phase 1 FPS: force walk-only, crosshair, no orbit */
+  gameWalk: true,
 };
 
 export const STRIP_ORDER = [

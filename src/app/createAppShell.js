@@ -13,6 +13,7 @@ import { createWalkPrompt } from "../ui/walk/createWalkPrompt.js";
 import { createMoveHint } from "../ui/walk/createMoveHint.js";
 import { createVirtualJoystick } from "../ui/walk/createVirtualJoystick.js";
 import { createWalkInputFacade } from "../ui/walk/createWalkInputFacade.js";
+import { createCrosshair } from "../ui/walk/createCrosshair.js";
 import { createCarEngineAudio } from "../audio/createCarEngineAudio.js";
 import { createPlaneEngineAudio } from "../audio/createPlaneEngineAudio.js";
 import { createWetFootstepAudio } from "../audio/createWetFootstepAudio.js";
@@ -125,6 +126,9 @@ export function createAppShell({
 
     header?.bindWalkControls?.(cameraDirector.walkControls);
   }
+
+  const crosshair =
+    FEATURES.gameWalk && FEATURES.walkUi ? createCrosshair() : null;
 
   const settingsPanel = FEATURES.chromeUi
     ? createSettingsPanel({
@@ -241,18 +245,25 @@ export function createAppShell({
   function revealAppUi() {
     finishedIntro = true;
     cameraDirector.setCameraMode("walk");
+    if (FEATURES.gameWalk) {
+      cameraDirector.setCameraMode("walk");
+    }
     uiVisibilityCoordinator?.refresh();
     header?.show();
     audioButton?.setVisible(true);
     walkPrompt?.setEnabled(true);
     moveHint?.setEnabled(true);
     virtualJoystick?.setEnabled(true);
+    crosshair?.setVisible(true);
     inspectorSession.revealInspector?.();
   }
 
   function onWalkModeChange(walk) {
     walkControlsHint?.setVisible(walk && finishedIntro);
     virtualJoystick?.setVisible(walk && finishedIntro);
+    if (FEATURES.gameWalk) {
+      crosshair?.setVisible(walk && finishedIntro);
+    }
   }
 
   return {

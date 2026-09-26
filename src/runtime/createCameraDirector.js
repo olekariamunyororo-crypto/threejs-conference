@@ -2,6 +2,7 @@ import * as THREE from "three/webgpu";
 import gsap from "gsap";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createWalkControls } from "../controls/createWalkControls.js";
+import { FEATURES } from "../world/features.js";
 import {
     FREE_CAMERA_START,
     cameraParams,
@@ -43,6 +44,10 @@ export function createCameraDirector({
   controls.minAzimuthAngle = -Infinity;
   controls.maxAzimuthAngle = Infinity;
   controls.update();
+
+  if (FEATURES.gameWalk) {
+    controls.enabled = false;
+  }
 
   const focusPoint = controls.target.clone();
   const walkFocusDirection = new THREE.Vector3();
@@ -116,25 +121,32 @@ export function createCameraDirector({
       ground: world.ground?.mesh ?? null,
       baseFov: getBaseFovForLayout(),
       settings: {
-        moveSpeed: 3,
-        sprintMultiplier: 3,
+        moveSpeed: FEATURES.gameWalk ? 4.2 : 3,
+        sprintMultiplier: FEATURES.gameWalk ? 1.7 : 3,
         eyeHeight: cameraParams.walkEyeHeight,
         acceleration: cameraParams.walkAcceleration,
         deceleration: cameraParams.walkDeceleration,
-        walkFovBoost: cameraParams.walkFovBoost,
-        sprintFovBoost: cameraParams.sprintFovBoost,
+        walkFovBoost: FEATURES.gameWalk ? 2 : cameraParams.walkFovBoost,
+        sprintFovBoost: FEATURES.gameWalk ? 6 : cameraParams.sprintFovBoost,
         walkFovBlendSpeed: cameraParams.walkFovBlendSpeed,
         sprintFovBlendSpeed: cameraParams.sprintFovBlendSpeed,
         playerRadius: 0.55,
+        ...(FEATURES.gameWalk ? { mouseSensitivity: 0.0022 } : {}),
       },
     });
   }
 
   function setCameraMode(mode) {
+    // Phase 1: game walk never leaves first-person
+    if (FEATURES.gameWalk && mode !== "walk") {
+      mode = "walk";
+    }
+
     const walk = mode === "walk";
     cameraModeState.orbitEnabled = !walk;
     walkControls?.setActive(walk);
-    controls.enabled = !walk && getFinishedIntro?.();
+    // Never enable OrbitControls in game mode
+    controls.enabled = !walk && !FEATURES.gameWalk && getFinishedIntro?.();
     onWalkModeChange?.(walk);
 
     if (walk) {
