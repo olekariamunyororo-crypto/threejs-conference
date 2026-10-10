@@ -1,6 +1,6 @@
 /**
- * First-person weapon viewmodel — parented to the camera.
- * Uses benelli_m4.glb only (gun + bundled hands). No separate arms.glb.
+ * First-person weapon viewmodel — Benelli only (gun + bundled hands).
+ * No separate arms.glb.
  */
 
 import * as THREE from "three/webgpu";
@@ -96,12 +96,35 @@ export function createWeaponView({ camera }) {
     const names = [];
     object.traverse((c) => {
       if (!c.isMesh) return;
-      names.push(c.name || "(unnamed)");
+      names.push(
+        `${c.name || "(unnamed)"}${c.isSkinnedMesh ? " [skinned]" : ""}`,
+      );
       c.visible = true;
       c.castShadow = false;
       c.receiveShadow = false;
       c.frustumCulled = false;
       c.renderOrder = 999;
+
+      // Skinned hands break if we strip skinning — keep original mats on skin
+      if (c.isSkinnedMesh) {
+        const mats = Array.isArray(c.material) ? c.material : [c.material];
+        mats.forEach((m) => {
+          if (!m) return;
+          m.depthTest = true;
+          m.depthWrite = true;
+          m.side = m.side ?? THREE.FrontSide;
+          // Unlit-ish so camera-attached hands aren't pure black
+          if ("emissive" in m && m.color) {
+            try {
+              m.emissive = m.color.clone();
+              m.emissiveIntensity = 0.35;
+            } catch {
+              /* ignore */
+            }
+          }
+        });
+        return;
+      }
 
       const mats = Array.isArray(c.material) ? c.material : [c.material];
       const next = mats.map((m) => {
@@ -142,6 +165,11 @@ export function createWeaponView({ camera }) {
     );
     if (idleKey) {
       actions[idleKey].play();
+    } else if (gltf.animations[0]) {
+      // Play first clip so skinned hands aren't in a collapsed bind pose
+      const a = mixer.clipAction(gltf.animations[0]);
+      a.play();
+      actions[gltf.animations[0].name.toLowerCase()] = a;
     }
     console.info(
       "[weapon-view] Animations:",
@@ -196,8 +224,8 @@ export function createWeaponView({ camera }) {
       prepareMeshes(model);
       fitObject(model, VIEWMODEL_TARGET_SIZE);
 
-      // No 180° flip — keep author orientation so bundled hands stay in view
-      // model.rotation.y += Math.PI;
+      // Barrel forward (away from player), stock toward player
+      model.rotation.y += Math.PI;
 
       model.position.y -= 0.02;
       model.position.z += 0.04;
@@ -208,12 +236,12 @@ export function createWeaponView({ camera }) {
       return;
     }
 
-    // Fallback: gun only (no arms.glb)
     const gunResult = await tryLoad(loader, M4_URLS);
     if (gunResult) {
       model = gunResult.gltf.scene;
       prepareMeshes(model);
       fitObject(model, GUN_TARGET_SIZE);
+      model.rotation.y += Math.PI;
       model.position.z += 0.02;
       pivot.add(model);
       console.info("[weapon-view] Loaded gun (no arms)", gunResult.url);
