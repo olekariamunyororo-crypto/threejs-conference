@@ -30,6 +30,8 @@ export const FEATURES = {
   inspector: true,
   /** Phase 1 FPS: force walk-only, crosshair, no orbit */
   gameWalk: true,
+  /** Full combat layer: enemies, weapon, health, game HUD */
+  fpsCombat: true,
 };
 
 export const STRIP_ORDER = [
