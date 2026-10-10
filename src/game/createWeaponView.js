@@ -1,34 +1,41 @@
 /**
- * First-person M4 + arms.glb viewmodel — parented to the camera.
+ * First-person weapon viewmodel — parented to the camera.
+ * Prefers benelli_m4.glb (gun + hands + anims), then m4 + arms, then procedural.
  */
 
 import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
+/** Full viewmodels (weapon + hands in one file) — preferred. */
+const VIEWMODEL_URLS = [
+  "/models/benelli_m4.glb",
+  "/models/benelli.glb",
+];
+
+/** Gun-only fallbacks */
 const M4_URLS = ["/models/m4.glb", "/models/M4.glb", "/m4.glb"];
+
+/** Separate arms if using gun-only model */
 const ARMS_URLS = ["/models/arms.glb", "/models/fp-arms.glb", "/arms.glb"];
 
 const REST = {
-  position: new THREE.Vector3(0.22, -0.24, -0.42),
-  rotation: new THREE.Euler(0.05, 0.05, 0.02),
+  position: new THREE.Vector3(0.18, -0.2, -0.36),
+  rotation: new THREE.Euler(0.04, 0.04, 0.02),
   scale: 1,
 };
 
-const GLB_ORIENT = new THREE.Euler(0, 0, 0);
+const VIEWMODEL_TARGET_SIZE = 0.85;
+const GUN_TARGET_SIZE = 0.75;
+const ARMS_TARGET_SIZE = 0.42;
 
-/**
- * Arms pose relative to the weapon pivot.
- * WRAD arms are full viewmodel scale — keep them small so they don't fill the FOV.
- */
 const ARMS_POSE = {
   position: new THREE.Vector3(0.05, -0.12, 0.15),
   rotation: new THREE.Euler(0.15, 0.0, 0.0),
-  targetSize: 0.42,
 };
 
 const RECOIL = {
-  kickZ: 0.05,
-  kickX: -0.04,
+  kickZ: 0.055,
+  kickX: -0.045,
   recover: 14,
 };
 
@@ -44,6 +51,8 @@ export function createWeaponView({ camera }) {
 
   let model = null;
   let arms = null;
+  let mixer = null;
+  let actions = {};
   let loaded = false;
   let recoilZ = 0;
   let recoilX = 0;
@@ -78,8 +87,7 @@ export function createWeaponView({ camera }) {
     return g;
   }
 
-  function fitObject(object, targetSize, orient = GLB_ORIENT) {
-    object.rotation.copy(orient);
+  function fitObject(object, targetSize) {
     const box = new THREE.Box3().setFromObject(object);
     const size = new THREE.Vector3();
     box.getSize(size);
@@ -89,6 +97,51 @@ export function createWeaponView({ camera }) {
     const center = new THREE.Vector3();
     box.getCenter(center);
     object.position.sub(center);
+  }
+
+  function prepareMeshes(object) {
+    object.traverse((c) => {
+      if (c.isMesh) {
+        c.castShadow = false;
+        c.receiveShadow = false;
+        c.frustumCulled = false;
+      }
+    });
+  }
+
+  function setupAnimations(gltf, scene) {
+    if (!gltf.animations?.length) return;
+    mixer = new THREE.AnimationMixer(scene);
+    for (const clip of gltf.animations) {
+      const name = clip.name.toLowerCase();
+      actions[name] = mixer.clipAction(clip);
+      // Prefer idle / rest if present
+      if (name.includes("idle") || name.includes("rest") || name.includes("hold")) {
+        actions[name].play();
+      }
+    }
+    // If nothing is playing, play the first clip looping quietly
+    const playing = Object.values(actions).some((a) => a.isRunning());
+    if (!playing && gltf.animations[0]) {
+      const a = mixer.clipAction(gltf.animations[0]);
+      a.play();
+      actions[gltf.animations[0].name.toLowerCase()] = a;
+    }
+    console.info(
+      "[weapon-view] Animations:",
+      gltf.animations.map((c) => c.name).join(", "),
+    );
+  }
+
+  function playAnim(hint) {
+    if (!mixer) return;
+    const key = Object.keys(actions).find((k) => k.includes(hint));
+    if (!key) return;
+    const action = actions[key];
+    action.reset();
+    action.setLoop(THREE.LoopOnce, 1);
+    action.clampWhenFinished = true;
+    action.play();
   }
 
   async function makeLoader() {
@@ -121,22 +174,32 @@ export function createWeaponView({ camera }) {
   async function load() {
     const loader = await makeLoader();
 
+    // 1) Preferred: full viewmodel (Benelli + hands)
+    const vm = await tryLoad(loader, VIEWMODEL_URLS);
+    if (vm) {
+      model = vm.gltf.scene;
+      prepareMeshes(model);
+      fitObject(model, VIEWMODEL_TARGET_SIZE);
+      model.position.z += 0.04;
+      model.position.y -= 0.02;
+      pivot.add(model);
+      setupAnimations(vm.gltf, model);
+      loaded = true;
+      console.info("[weapon-view] Loaded viewmodel", vm.url);
+      return;
+    }
+
+    // 2) Fallback: separate gun + arms
     const gunResult = await tryLoad(loader, M4_URLS);
     if (gunResult) {
       model = gunResult.gltf.scene;
-      model.traverse((c) => {
-        if (c.isMesh) {
-          c.castShadow = false;
-          c.receiveShadow = false;
-          c.frustumCulled = false;
-        }
-      });
-      fitObject(model, 0.75);
+      prepareMeshes(model);
+      fitObject(model, GUN_TARGET_SIZE);
       model.position.z += 0.02;
       pivot.add(model);
       console.info("[weapon-view] Loaded gun", gunResult.url);
     } else {
-      console.warn("[weapon-view] m4.glb missing — procedural gun");
+      console.warn("[weapon-view] No gun GLB — procedural");
       model = buildFallbackGun();
       pivot.add(model);
     }
@@ -144,24 +207,14 @@ export function createWeaponView({ camera }) {
     const armsResult = await tryLoad(loader, ARMS_URLS);
     if (armsResult) {
       arms = armsResult.gltf.scene;
-      arms.traverse((c) => {
-        if (c.isMesh) {
-          c.castShadow = false;
-          c.receiveShadow = false;
-          c.frustumCulled = false;
-        }
-      });
-      fitObject(arms, ARMS_POSE.targetSize);
+      prepareMeshes(arms);
+      fitObject(arms, ARMS_TARGET_SIZE);
       arms.position.add(ARMS_POSE.position);
       arms.rotation.x += ARMS_POSE.rotation.x;
       arms.rotation.y += ARMS_POSE.rotation.y;
       arms.rotation.z += ARMS_POSE.rotation.z;
       pivot.add(arms);
       console.info("[weapon-view] Loaded arms", armsResult.url);
-    } else {
-      console.warn(
-        "[weapon-view] arms.glb missing — place at public/models/arms.glb",
-      );
     }
 
     loaded = true;
@@ -172,6 +225,9 @@ export function createWeaponView({ camera }) {
   function kick() {
     recoilZ += RECOIL.kickZ;
     recoilX += RECOIL.kickX * (0.8 + Math.random() * 0.4);
+    playAnim("fire");
+    playAnim("shoot");
+    playAnim("attack");
   }
 
   function setVisible(v) {
@@ -181,6 +237,9 @@ export function createWeaponView({ camera }) {
 
   function update(delta, { moving = false, sprinting = false } = {}) {
     if (!visible) return;
+
+    if (mixer) mixer.update(delta);
+
     const recover = 1 - Math.exp(-delta * RECOIL.recover);
     recoilZ += (0 - recoilZ) * recover;
     recoilX += (0 - recoilX) * recover;
@@ -201,6 +260,7 @@ export function createWeaponView({ camera }) {
 
   function dispose() {
     camera.remove(root);
+    mixer?.stopAllAction();
   }
 
   return {
@@ -212,5 +272,6 @@ export function createWeaponView({ camera }) {
     update,
     dispose,
     isLoaded: () => loaded,
+    playAnim,
   };
 }
