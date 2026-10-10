@@ -1,24 +1,28 @@
 /**
- * First-person M4 + left arm grip — parented to the camera.
+ * First-person M4 + arms.glb viewmodel — parented to the camera.
  */
 
 import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
-const M4_URLS = [
-  "/models/m4.glb",
-  "/models/M4.glb",
-  "/m4.glb",
-  "/weapons/m4.glb",
-];
+const M4_URLS = ["/models/m4.glb", "/models/M4.glb", "/m4.glb"];
+const ARMS_URLS = ["/models/arms.glb", "/models/fp-arms.glb", "/arms.glb"];
 
 const REST = {
-  position: new THREE.Vector3(0.22, -0.24, -0.40),
-  rotation: new THREE.Euler(0.06, 0.08, 0.04),
+  position: new THREE.Vector3(0.2, -0.22, -0.38),
+  rotation: new THREE.Euler(0.05, 0.06, 0.03),
   scale: 1,
 };
 
 const GLB_ORIENT = new THREE.Euler(0, 0, 0);
+
+/** Arms pose relative to the weapon pivot — tweak if hands miss the gun. */
+const ARMS_POSE = {
+  position: new THREE.Vector3(-0.05, -0.08, 0.08),
+  rotation: new THREE.Euler(0.1, 0.15, 0.05),
+  /** Target length of arms in camera space after fit */
+  targetSize: 0.9,
+};
 
 const RECOIL = {
   kickZ: 0.05,
@@ -37,16 +41,14 @@ export function createWeaponView({ camera }) {
   root.add(pivot);
 
   let model = null;
+  let arms = null;
   let loaded = false;
   let recoilZ = 0;
   let recoilX = 0;
   let bobPhase = 0;
   let visible = true;
 
-  const leftArm = buildLeftArm();
-  pivot.add(leftArm);
-
-  function buildFallback() {
+  function buildFallbackGun() {
     const g = new THREE.Group();
     const mat = new THREE.MeshBasicNodeMaterial({ color: 0x2a2a32 });
     const accent = new THREE.MeshBasicNodeMaterial({ color: 0xff2d6a });
@@ -71,100 +73,23 @@ export function createWeaponView({ camera }) {
     mag.position.set(0, -0.12, 0.05);
     g.add(mag);
 
-    const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 0.25), mat);
-    handguard.position.set(0, 0.0, -0.2);
-    g.add(handguard);
-
     return g;
   }
 
-  /**
-   * Compact left-hand grip only — sleeve peeks from bottom-left,
-   * glove rests on the handguard. Kept small so it never fills the FOV.
-   */
-  function buildLeftArm() {
-    const arm = new THREE.Group();
-    arm.name = "fp-left-arm";
-
-    const sleeveMat = new THREE.MeshBasicNodeMaterial({ color: 0x3a4555 });
-    const gloveMat = new THREE.MeshBasicNodeMaterial({ color: 0x1c222b });
-    const accentMat = new THREE.MeshBasicNodeMaterial({ color: 0x5a4a2a }); // watch band
-
-    // Forearm sleeve — short segment coming from bottom-left toward the gun
-    const sleeve = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.028, 0.11, 4, 8),
-      sleeveMat,
-    );
-    sleeve.rotation.z = 1.15;
-    sleeve.rotation.x = 0.35;
-    sleeve.position.set(-0.12, -0.09, 0.02);
-    arm.add(sleeve);
-
-    // Wrist / cuff
-    const cuff = new THREE.Mesh(
-      new THREE.TorusGeometry(0.03, 0.008, 6, 10),
-      accentMat,
-    );
-    cuff.rotation.y = Math.PI / 2;
-    cuff.position.set(-0.02, -0.05, -0.04);
-    arm.add(cuff);
-
-    // Palm on handguard
-    const palm = new THREE.Mesh(
-      new THREE.BoxGeometry(0.055, 0.03, 0.07),
-      gloveMat,
-    );
-    palm.position.set(0.04, -0.035, -0.10);
-    palm.rotation.x = -0.2;
-    palm.rotation.z = -0.35;
-    palm.rotation.y = 0.15;
-    arm.add(palm);
-
-    // Four fingers over the rail
-    for (let i = 0; i < 4; i++) {
-      const finger = new THREE.Mesh(
-        new THREE.CapsuleGeometry(0.007, 0.028, 3, 6),
-        gloveMat,
-      );
-      finger.position.set(0.02 + i * 0.014, -0.015, -0.145);
-      finger.rotation.x = 1.1;
-      finger.rotation.z = -0.1;
-      arm.add(finger);
-    }
-
-    // Thumb along the side
-    const thumb = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.008, 0.025, 3, 6),
-      gloveMat,
-    );
-    thumb.position.set(-0.01, -0.02, -0.09);
-    thumb.rotation.y = 0.9;
-    thumb.rotation.x = 0.4;
-    arm.add(thumb);
-
-    return arm;
-  }
-
-  function fitModel(object) {
-    object.rotation.copy(GLB_ORIENT);
-
+  function fitObject(object, targetSize, orient = GLB_ORIENT) {
+    object.rotation.copy(orient);
     const box = new THREE.Box3().setFromObject(object);
     const size = new THREE.Vector3();
     box.getSize(size);
     const longest = Math.max(size.x, size.y, size.z, 0.001);
-    const s = 0.8 / longest;
-    object.scale.setScalar(s * REST.scale);
-
+    object.scale.setScalar(targetSize / longest);
     box.setFromObject(object);
     const center = new THREE.Vector3();
     box.getCenter(center);
     object.position.sub(center);
-
-    object.position.z += 0.02;
-    object.position.y -= 0.01;
   }
 
-  async function load() {
+  async function makeLoader() {
     const loader = new GLTFLoader();
     try {
       const { DRACOLoader } = await import(
@@ -176,21 +101,28 @@ export function createWeaponView({ camera }) {
     } catch {
       /* optional */
     }
+    return loader;
+  }
 
-    let gltf = null;
-    let usedUrl = null;
-    for (const url of M4_URLS) {
+  async function tryLoad(loader, urls) {
+    for (const url of urls) {
       try {
-        gltf = await loader.loadAsync(url);
-        usedUrl = url;
-        break;
+        const gltf = await loader.loadAsync(url);
+        return { gltf, url };
       } catch {
         /* next */
       }
     }
+    return null;
+  }
 
-    if (gltf) {
-      model = gltf.scene;
+  async function load() {
+    const loader = await makeLoader();
+
+    // --- M4 ---
+    const gunResult = await tryLoad(loader, M4_URLS);
+    if (gunResult) {
+      model = gunResult.gltf.scene;
       model.traverse((c) => {
         if (c.isMesh) {
           c.castShadow = false;
@@ -198,16 +130,40 @@ export function createWeaponView({ camera }) {
           c.frustumCulled = false;
         }
       });
-      fitModel(model);
+      fitObject(model, 0.8);
+      model.position.z += 0.02;
       pivot.add(model);
-      loaded = true;
-      console.info("[weapon-view] Loaded", usedUrl);
-      return;
+      console.info("[weapon-view] Loaded gun", gunResult.url);
+    } else {
+      console.warn("[weapon-view] m4.glb missing — procedural gun");
+      model = buildFallbackGun();
+      pivot.add(model);
     }
 
-    console.warn("[weapon-view] m4.glb missing — procedural gun");
-    model = buildFallback();
-    pivot.add(model);
+    // --- Arms ---
+    const armsResult = await tryLoad(loader, ARMS_URLS);
+    if (armsResult) {
+      arms = armsResult.gltf.scene;
+      arms.traverse((c) => {
+        if (c.isMesh) {
+          c.castShadow = false;
+          c.receiveShadow = false;
+          c.frustumCulled = false;
+        }
+      });
+      fitObject(arms, ARMS_POSE.targetSize);
+      arms.position.add(ARMS_POSE.position);
+      arms.rotation.x += ARMS_POSE.rotation.x;
+      arms.rotation.y += ARMS_POSE.rotation.y;
+      arms.rotation.z += ARMS_POSE.rotation.z;
+      pivot.add(arms);
+      console.info("[weapon-view] Loaded arms", armsResult.url);
+    } else {
+      console.warn(
+        "[weapon-view] arms.glb missing — place at public/models/arms.glb",
+      );
+    }
+
     loaded = true;
   }
 
