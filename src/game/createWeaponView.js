@@ -197,6 +197,7 @@ export function createWeaponView({ camera }) {
   async function load() {
     const loader = await makeLoader();
 
+    // 1) Preferred: full Benelli viewmodel (gun + hands already bundled)
     const vm = await tryLoad(loader, VIEWMODEL_URLS);
     if (vm) {
       model = vm.gltf.scene;
@@ -211,30 +212,30 @@ export function createWeaponView({ camera }) {
       pivot.add(model);
       setupAnimations(vm.gltf, model);
       loaded = true;
-      console.info("[weapon-view] Loaded viewmodel", vm.url);
+      console.info("[weapon-view] Loaded viewmodel (hands included)", vm.url);
+      return; // do NOT load separate arms.glb
     }
 
-    if (!model) {
-      const gunResult = await tryLoad(loader, M4_URLS);
-      if (gunResult) {
-        model = gunResult.gltf.scene;
-        prepareMeshes(model);
-        fitObject(model, GUN_TARGET_SIZE);
+    // 2) Fallback: separate gun + arms only if no full viewmodel
+    const gunResult = await tryLoad(loader, M4_URLS);
+    if (gunResult) {
+      model = gunResult.gltf.scene;
+      prepareMeshes(model);
+      fitObject(model, GUN_TARGET_SIZE);
 
-        // Spin 180° — stock to player, barrel forward
-        model.rotation.y += Math.PI;
+      // Spin 180° — stock to player, barrel forward
+      model.rotation.y += Math.PI;
 
-        model.position.z += 0.02;
-        pivot.add(model);
-        console.info("[weapon-view] Loaded gun", gunResult.url);
-      } else {
-        console.warn("[weapon-view] No gun GLB — procedural");
-        model = buildFallbackGun();
-        pivot.add(model);
-      }
+      model.position.z += 0.02;
+      pivot.add(model);
+      console.info("[weapon-view] Loaded gun", gunResult.url);
+    } else {
+      console.warn("[weapon-view] No gun GLB — procedural");
+      model = buildFallbackGun();
+      pivot.add(model);
     }
 
-    // Always try to show arms
+    // Separate arms only for the fallback path
     const armsResult = await tryLoad(loader, ARMS_URLS);
     if (armsResult) {
       arms = armsResult.gltf.scene;
