@@ -20,7 +20,10 @@ export function createGame({
   const player = createPlayer();
   const weapon = createWeapon("neonRifle");
   const enemies = createEnemies({
-    scene, spawnCenter, spawnRadius: { min: 10, max: 40 }, settings: { count: 8 },
+    scene,
+    spawnCenter,
+    spawnRadius: { min: 24, max: 50 },
+    settings: { count: 5, combatGrace: 6 },
   });
   const fx = createCombatFx({ scene, camera });
   const weaponView = createWeaponView({ camera, renderer });
