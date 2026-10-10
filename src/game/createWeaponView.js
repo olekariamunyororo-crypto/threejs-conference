@@ -1,6 +1,5 @@
 /**
  * First-person M4 weapon view — parented to the camera.
- * Loads /models/m4.glb (tries several paths). Falls back to procedural gun.
  */
 
 import * as THREE from "three/webgpu";
@@ -14,7 +13,7 @@ const M4_URLS = [
 ];
 
 const REST = {
-  position: new THREE.Vector3(0.28, -0.32, -0.55),
+  position: new THREE.Vector3(0.22, -0.28, -0.48),
   rotation: new THREE.Euler(0.04, Math.PI, 0.02),
   scale: 1,
 };
@@ -25,7 +24,7 @@ const RECOIL = {
   recover: 14,
 };
 
-export function createWeaponView({ camera, renderer }) {
+export function createWeaponView({ camera }) {
   const root = new THREE.Group();
   root.name = "fp-weapon";
   camera.add(root);
@@ -44,38 +43,29 @@ export function createWeaponView({ camera, renderer }) {
 
   function buildFallback() {
     const g = new THREE.Group();
-    const mat = new THREE.MeshStandardNodeMaterial({
-      color: 0x1a1a1e,
-      metalness: 0.7,
-      roughness: 0.35,
-    });
-    const accent = new THREE.MeshStandardNodeMaterial({
-      color: 0xff2d6a,
-      emissive: 0xff2d6a,
-      emissiveIntensity: 0.4,
-      metalness: 0.3,
-      roughness: 0.4,
-    });
+    // Basic = always visible without scene lights
+    const mat = new THREE.MeshBasicNodeMaterial({ color: 0x2a2a32 });
+    const accent = new THREE.MeshBasicNodeMaterial({ color: 0xff2d6a });
 
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.55), mat);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.6), mat);
     body.position.set(0, 0.02, 0);
     g.add(body);
 
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, 0.35, 8), mat);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.4, 8), mat);
     barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.03, -0.4);
+    barrel.position.set(0, 0.03, -0.45);
     g.add(barrel);
 
-    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.18), mat);
-    stock.position.set(0, 0.0, 0.32);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.09, 0.2), mat);
+    stock.position.set(0, 0.0, 0.35);
     g.add(stock);
 
-    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.08), accent);
-    mag.position.set(0, -0.1, 0.05);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.09), accent);
+    mag.position.set(0, -0.12, 0.05);
     g.add(mag);
 
-    const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.06, 0.22), mat);
-    handguard.position.set(0, 0.0, -0.18);
+    const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 0.25), mat);
+    handguard.position.set(0, 0.0, -0.2);
     g.add(handguard);
 
     return g;
@@ -86,7 +76,7 @@ export function createWeaponView({ camera, renderer }) {
     const size = new THREE.Vector3();
     box.getSize(size);
     const longest = Math.max(size.x, size.y, size.z, 0.001);
-    const s = 0.65 / longest;
+    const s = 0.7 / longest;
     object.scale.setScalar(s * REST.scale);
     box.setFromObject(object);
     const center = new THREE.Vector3();
@@ -115,7 +105,7 @@ export function createWeaponView({ camera, renderer }) {
         usedUrl = url;
         break;
       } catch {
-        /* try next */
+        /* next */
       }
     }
 
@@ -135,9 +125,7 @@ export function createWeaponView({ camera, renderer }) {
       return;
     }
 
-    console.warn(
-      "[weapon-view] m4.glb not found — using procedural gun. Copy to public/models/m4.glb",
-    );
+    console.warn("[weapon-view] m4.glb missing — procedural gun");
     model = buildFallback();
     pivot.add(model);
     loaded = true;
@@ -177,23 +165,10 @@ export function createWeaponView({ camera, renderer }) {
 
   function dispose() {
     camera.remove(root);
-    root.traverse((obj) => {
-      if (obj.geometry) obj.geometry.dispose();
-      if (obj.material) {
-        if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose());
-        else obj.material.dispose?.();
-      }
-    });
   }
 
   return {
-    root,
-    pivot,
-    loadPromise,
-    kick,
-    setVisible,
-    update,
-    dispose,
+    root, pivot, loadPromise, kick, setVisible, update, dispose,
     isLoaded: () => loaded,
   };
 }
