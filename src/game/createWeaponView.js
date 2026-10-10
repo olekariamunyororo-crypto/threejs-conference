@@ -1,5 +1,6 @@
 /**
- * First-person M4 weapon view — parented to the camera.
+ * First-person M4 + left arm grip — parented to the camera.
+ * Pose tuned to look like a classic FPS hold (left hand on handguard).
  */
 
 import * as THREE from "three/webgpu";
@@ -12,21 +13,21 @@ const M4_URLS = [
   "/weapons/m4.glb",
 ];
 
+/**
+ * Camera-local rest pose — gun lower-right, barrel into the world (-Z).
+ * Tuned to leave room for the left arm on the left side of the frame.
+ */
 const REST = {
-  position: new THREE.Vector3(0.28, -0.26, -0.42),
-  rotation: new THREE.Euler(0.02, 0, 0.04),
+  position: new THREE.Vector3(0.18, -0.22, -0.38),
+  rotation: new THREE.Euler(0.08, 0.12, 0.06),
   scale: 1,
 };
 
-/**
- * Extra rotation applied only to loaded GLBs.
- * Y = 0 keeps authoring forward axis; previous Math.PI had the stock facing the world.
- */
 const GLB_ORIENT = new THREE.Euler(0, 0, 0);
 
 const RECOIL = {
-  kickZ: 0.045,
-  kickX: -0.035,
+  kickZ: 0.05,
+  kickX: -0.04,
   recover: 14,
 };
 
@@ -46,6 +47,10 @@ export function createWeaponView({ camera }) {
   let recoilX = 0;
   let bobPhase = 0;
   let visible = true;
+
+  // Left arm is always present (procedural)
+  const leftArm = buildLeftArm();
+  pivot.add(leftArm);
 
   function buildFallback() {
     const g = new THREE.Group();
@@ -79,6 +84,99 @@ export function createWeaponView({ camera }) {
     return g;
   }
 
+  /**
+   * Stylized left arm: sleeve → forearm → glove hand on the handguard.
+   * Coordinates are relative to the weapon pivot (gun local space).
+   */
+  function buildLeftArm() {
+    const arm = new THREE.Group();
+    arm.name = "fp-left-arm";
+
+    // Colors matching the reference (dark sleeve, glove)
+    const sleeveMat = new THREE.MeshBasicNodeMaterial({ color: 0x2c3540 });
+    const gloveMat = new THREE.MeshBasicNodeMaterial({ color: 0x1a1e24 });
+    const skinMat = new THREE.MeshBasicNodeMaterial({ color: 0x8d6e5a });
+    const watchMat = new THREE.MeshBasicNodeMaterial({ color: 0x111111 });
+    const watchFace = new THREE.MeshBasicNodeMaterial({ color: 0xc8c8c8 });
+
+    // Upper sleeve (coming from bottom-left of camera)
+    const sleeve = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.055, 0.065, 0.28, 8),
+      sleeveMat,
+    );
+    sleeve.rotation.z = Math.PI / 2;
+    sleeve.rotation.y = -0.35;
+    sleeve.position.set(-0.22, -0.08, 0.05);
+    arm.add(sleeve);
+
+    // Forearm
+    const forearm = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04, 0.05, 0.22, 8),
+      sleeveMat,
+    );
+    forearm.rotation.z = Math.PI / 2;
+    forearm.rotation.y = -0.15;
+    forearm.position.set(-0.05, -0.06, -0.02);
+    arm.add(forearm);
+
+    // Watch on wrist
+    const watch = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.042, 0.042, 0.03, 12),
+      watchMat,
+    );
+    watch.rotation.z = Math.PI / 2;
+    watch.position.set(0.04, -0.05, -0.06);
+    arm.add(watch);
+    const face = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.028, 0.028, 0.008, 12),
+      watchFace,
+    );
+    face.rotation.z = Math.PI / 2;
+    face.position.set(0.04, -0.035, -0.06);
+    arm.add(face);
+
+    // Glove / hand gripping the handguard
+    const palm = new THREE.Mesh(
+      new THREE.BoxGeometry(0.07, 0.045, 0.09),
+      gloveMat,
+    );
+    palm.position.set(0.12, -0.04, -0.12);
+    palm.rotation.y = 0.2;
+    palm.rotation.z = -0.25;
+    arm.add(palm);
+
+    // Fingers curled over the rail
+    const fingerGeo = new THREE.BoxGeometry(0.018, 0.025, 0.06);
+    for (let i = 0; i < 4; i++) {
+      const f = new THREE.Mesh(fingerGeo, gloveMat);
+      f.position.set(0.1 + i * 0.018, -0.01, -0.16);
+      f.rotation.x = -0.9;
+      f.rotation.z = -0.15;
+      arm.add(f);
+    }
+
+    // Thumb
+    const thumb = new THREE.Mesh(
+      new THREE.BoxGeometry(0.02, 0.025, 0.05),
+      gloveMat,
+    );
+    thumb.position.set(0.08, -0.02, -0.1);
+    thumb.rotation.y = 0.6;
+    thumb.rotation.x = -0.3;
+    arm.add(thumb);
+
+    // Small wrist skin band between sleeve and glove
+    const wrist = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.038, 0.038, 0.02, 8),
+      skinMat,
+    );
+    wrist.rotation.z = Math.PI / 2;
+    wrist.position.set(0.02, -0.05, -0.05);
+    arm.add(wrist);
+
+    return arm;
+  }
+
   function fitModel(object) {
     object.rotation.copy(GLB_ORIENT);
 
@@ -86,7 +184,8 @@ export function createWeaponView({ camera }) {
     const size = new THREE.Vector3();
     box.getSize(size);
     const longest = Math.max(size.x, size.y, size.z, 0.001);
-    const s = 0.75 / longest;
+    // Slightly larger than before so the handguard meets the hand
+    const s = 0.85 / longest;
     object.scale.setScalar(s * REST.scale);
 
     box.setFromObject(object);
@@ -94,8 +193,10 @@ export function createWeaponView({ camera }) {
     box.getCenter(center);
     object.position.sub(center);
 
-    object.position.z += 0.05;
-    object.position.y -= 0.02;
+    // Shift so handguard sits near the left-hand grip point
+    object.position.z += 0.02;
+    object.position.y -= 0.01;
+    object.position.x += 0.02;
   }
 
   async function load() {
