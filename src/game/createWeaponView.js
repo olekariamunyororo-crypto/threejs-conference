@@ -1,0 +1,183 @@
+/**
+ * First-person M4 weapon view — parented to the camera.
+ * Loads /models/m4.glb. Falls back to a procedural gun if missing.
+ */
+
+import * as THREE from "three/webgpu";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+const M4_URL = "/models/m4.glb";
+
+const REST = {
+  position: new THREE.Vector3(0.28, -0.32, -0.55),
+  rotation: new THREE.Euler(0.04, Math.PI, 0.02),
+  scale: 1,
+};
+
+const RECOIL = {
+  kickZ: 0.045,
+  kickX: -0.035,
+  recover: 14,
+};
+
+export function createWeaponView({ camera, renderer }) {
+  const root = new THREE.Group();
+  root.name = "fp-weapon";
+  camera.add(root);
+
+  const pivot = new THREE.Group();
+  pivot.position.copy(REST.position);
+  pivot.rotation.copy(REST.rotation);
+  root.add(pivot);
+
+  let model = null;
+  let loaded = false;
+  let recoilZ = 0;
+  let recoilX = 0;
+  let bobPhase = 0;
+  let visible = true;
+
+  function buildFallback() {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshStandardNodeMaterial({
+      color: 0x1a1a1e,
+      metalness: 0.7,
+      roughness: 0.35,
+    });
+    const accent = new THREE.MeshStandardNodeMaterial({
+      color: 0xff2d6a,
+      emissive: 0xff2d6a,
+      emissiveIntensity: 0.4,
+      metalness: 0.3,
+      roughness: 0.4,
+    });
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.55), mat);
+    body.position.set(0, 0.02, 0);
+    g.add(body);
+
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, 0.35, 8), mat);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(0, 0.03, -0.4);
+    g.add(barrel);
+
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.18), mat);
+    stock.position.set(0, 0.0, 0.32);
+    g.add(stock);
+
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.14, 0.08), accent);
+    mag.position.set(0, -0.1, 0.05);
+    g.add(mag);
+
+    const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.06, 0.22), mat);
+    handguard.position.set(0, 0.0, -0.18);
+    g.add(handguard);
+
+    return g;
+  }
+
+  function fitModel(object) {
+    const box = new THREE.Box3().setFromObject(object);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const longest = Math.max(size.x, size.y, size.z, 0.001);
+    const s = 0.65 / longest;
+    object.scale.setScalar(s * REST.scale);
+    box.setFromObject(object);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    object.position.sub(center);
+    object.position.z += size.z * s * 0.15;
+    object.position.y -= size.y * s * 0.1;
+  }
+
+  async function load() {
+    try {
+      const loader = new GLTFLoader();
+      try {
+        const { DRACOLoader } = await import("three/addons/loaders/DRACOLoader.js");
+        const draco = new DRACOLoader();
+        draco.setDecoderPath("/libs/draco/");
+        loader.setDRACOLoader(draco);
+      } catch {
+        /* optional */
+      }
+
+      const gltf = await loader.loadAsync(M4_URL);
+      model = gltf.scene;
+      model.traverse((c) => {
+        if (c.isMesh) {
+          c.castShadow = false;
+          c.receiveShadow = false;
+          c.frustumCulled = false;
+        }
+      });
+      fitModel(model);
+      pivot.add(model);
+      loaded = true;
+      console.info("[weapon-view] Loaded", M4_URL);
+    } catch (err) {
+      console.warn(
+        "[weapon-view] Failed to load m4.glb — using fallback. Copy to public/models/m4.glb",
+        err?.message ?? err,
+      );
+      model = buildFallback();
+      pivot.add(model);
+      loaded = true;
+    }
+  }
+
+  const loadPromise = load();
+
+  function kick() {
+    recoilZ += RECOIL.kickZ;
+    recoilX += RECOIL.kickX * (0.8 + Math.random() * 0.4);
+  }
+
+  function setVisible(v) {
+    visible = Boolean(v);
+    root.visible = visible;
+  }
+
+  function update(delta, { moving = false, sprinting = false } = {}) {
+    if (!visible) return;
+    const recover = 1 - Math.exp(-delta * RECOIL.recover);
+    recoilZ += (0 - recoilZ) * recover;
+    recoilX += (0 - recoilX) * recover;
+
+    const bobSpeed = sprinting ? 12 : moving ? 8 : 1.6;
+    const bobAmp = sprinting ? 0.012 : moving ? 0.008 : 0.003;
+    bobPhase += delta * bobSpeed;
+    const bobY = Math.sin(bobPhase) * bobAmp;
+    const bobX = Math.cos(bobPhase * 0.5) * bobAmp * 0.6;
+
+    pivot.position.x = REST.position.x + bobX;
+    pivot.position.y = REST.position.y + bobY + recoilX * 0.3;
+    pivot.position.z = REST.position.z + recoilZ;
+    pivot.rotation.x = REST.rotation.x + recoilX;
+    pivot.rotation.y = REST.rotation.y;
+    pivot.rotation.z = REST.rotation.z + bobX * 0.5;
+  }
+
+  function dispose() {
+    camera.remove(root);
+    root.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose());
+        else obj.material.dispose?.();
+      }
+    });
+  }
+
+  return {
+    root,
+    pivot,
+    loadPromise,
+    kick,
+    setVisible,
+    update,
+    dispose,
+    isLoaded: () => loaded,
+  };
+}
