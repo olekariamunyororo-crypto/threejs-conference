@@ -9,6 +9,7 @@ import { createCombatFx } from "./createCombatFx.js";
 import { createWeaponView } from "./createWeaponView.js";
 import { createGameHud } from "../ui/game/createGameHud.js";
 import { createShootButton } from "../ui/game/createShootButton.js";
+import { createGunshotAudio } from "../audio/createGunshotAudio.js";
 
 export function createGame({
   scene, camera, renderer, getWalkControls, getFinishedIntro,
@@ -23,6 +24,10 @@ export function createGame({
   });
   const fx = createCombatFx({ scene, camera });
   const weaponView = createWeaponView({ camera, renderer });
+  let gunshot = { play() {} };
+  createGunshotAudio({ camera }).then((g) => {
+    gunshot = g;
+  });
   const raycaster = new THREE.Raycaster();
   const _origin = new THREE.Vector3();
   const _dir = new THREE.Vector3();
@@ -87,6 +92,7 @@ export function createGame({
       onFire: (info) => {
         fx.onFire(info);
         weaponView.kick();
+        gunshot.play();
         const walk = getWalkControls?.();
         if (walk?.applyLookDelta) {
           const sens = walk.settings?.mouseSensitivity ?? 0.002;
@@ -184,6 +190,7 @@ export function createGame({
     enemies.dispose();
     fx.dispose();
     weaponView.dispose();
+    gunshot.dispose?.();
     hud.destroy();
     shootBtn.destroy();
   }
