@@ -1,6 +1,6 @@
 /**
  * First-person weapon viewmodel — parented to the camera.
- * Prefers benelli_m4.glb (gun + hands), then m4 + arms, then procedural.
+ * Uses benelli_m4.glb only (gun + bundled hands). No separate arms.glb.
  */
 
 import * as THREE from "three/webgpu";
@@ -12,24 +12,15 @@ const VIEWMODEL_URLS = [
 ];
 
 const M4_URLS = ["/models/m4.glb", "/models/M4.glb", "/m4.glb"];
-const ARMS_URLS = ["/models/arms.glb", "/models/fp-arms.glb", "/arms.glb"];
 
-/** Lower-right, small so it never fills the FOV. */
 const REST = {
-  position: new THREE.Vector3(0.25, -0.28, -0.55),
-  rotation: new THREE.Euler(0.05, 0.08, 0.03),
+  position: new THREE.Vector3(0.22, -0.22, -0.48),
+  rotation: new THREE.Euler(0.04, 0.06, 0.02),
   scale: 1,
 };
 
-/** Benelli was huge — keep this small. */
 const VIEWMODEL_TARGET_SIZE = 0.55;
 const GUN_TARGET_SIZE = 0.85;
-const ARMS_TARGET_SIZE = 0.4;
-
-const ARMS_POSE = {
-  position: new THREE.Vector3(0.05, -0.12, 0.15),
-  rotation: new THREE.Euler(0.15, 0.0, 0.0),
-};
 
 const RECOIL = {
   kickZ: 0.04,
@@ -48,7 +39,6 @@ export function createWeaponView({ camera }) {
   root.add(pivot);
 
   let model = null;
-  let arms = null;
   let mixer = null;
   let actions = {};
   let loaded = false;
@@ -93,8 +83,7 @@ export function createWeaponView({ camera }) {
     const size = new THREE.Vector3();
     box.getSize(size);
     const longest = Math.max(size.x, size.y, size.z, 0.001);
-    const s = targetSize / longest;
-    object.scale.setScalar(s);
+    object.scale.setScalar(targetSize / longest);
 
     object.updateMatrixWorld(true);
     box.setFromObject(object);
@@ -104,8 +93,11 @@ export function createWeaponView({ camera }) {
   }
 
   function prepareMeshes(object) {
+    const names = [];
     object.traverse((c) => {
       if (!c.isMesh) return;
+      names.push(c.name || "(unnamed)");
+      c.visible = true;
       c.castShadow = false;
       c.receiveShadow = false;
       c.frustumCulled = false;
@@ -131,6 +123,7 @@ export function createWeaponView({ camera }) {
       });
       c.material = Array.isArray(c.material) ? next : next[0];
     });
+    console.info("[weapon-view] Meshes:", names.join(", "));
   }
 
   function setupAnimations(gltf, scene) {
@@ -197,56 +190,37 @@ export function createWeaponView({ camera }) {
   async function load() {
     const loader = await makeLoader();
 
-    // 1) Preferred: full Benelli viewmodel (gun + hands already bundled)
     const vm = await tryLoad(loader, VIEWMODEL_URLS);
     if (vm) {
       model = vm.gltf.scene;
       prepareMeshes(model);
       fitObject(model, VIEWMODEL_TARGET_SIZE);
 
-      // Spin 180° — stock to player, barrel forward
-      model.rotation.y += Math.PI;
+      // No 180° flip — keep author orientation so bundled hands stay in view
+      // model.rotation.y += Math.PI;
 
-      model.position.y -= 0.05;
-      model.position.z += 0.08;
+      model.position.y -= 0.02;
+      model.position.z += 0.04;
       pivot.add(model);
       setupAnimations(vm.gltf, model);
       loaded = true;
-      console.info("[weapon-view] Loaded viewmodel (hands included)", vm.url);
-      return; // do NOT load separate arms.glb
+      console.info("[weapon-view] Loaded Benelli viewmodel", vm.url);
+      return;
     }
 
-    // 2) Fallback: separate gun + arms only if no full viewmodel
+    // Fallback: gun only (no arms.glb)
     const gunResult = await tryLoad(loader, M4_URLS);
     if (gunResult) {
       model = gunResult.gltf.scene;
       prepareMeshes(model);
       fitObject(model, GUN_TARGET_SIZE);
-
-      // Spin 180° — stock to player, barrel forward
-      model.rotation.y += Math.PI;
-
       model.position.z += 0.02;
       pivot.add(model);
-      console.info("[weapon-view] Loaded gun", gunResult.url);
+      console.info("[weapon-view] Loaded gun (no arms)", gunResult.url);
     } else {
       console.warn("[weapon-view] No gun GLB — procedural");
       model = buildFallbackGun();
       pivot.add(model);
-    }
-
-    // Separate arms only for the fallback path
-    const armsResult = await tryLoad(loader, ARMS_URLS);
-    if (armsResult) {
-      arms = armsResult.gltf.scene;
-      prepareMeshes(arms);
-      fitObject(arms, ARMS_TARGET_SIZE);
-      arms.position.add(ARMS_POSE.position);
-      arms.rotation.x += ARMS_POSE.rotation.x;
-      arms.rotation.y += ARMS_POSE.rotation.y;
-      arms.rotation.z += ARMS_POSE.rotation.z;
-      pivot.add(arms);
-      console.info("[weapon-view] Loaded arms", armsResult.url);
     }
 
     loaded = true;
