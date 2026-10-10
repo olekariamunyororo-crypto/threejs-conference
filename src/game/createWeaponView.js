@@ -1,12 +1,17 @@
 /**
  * First-person M4 weapon view — parented to the camera.
- * Loads /models/m4.glb. Falls back to a procedural gun if missing.
+ * Loads /models/m4.glb (tries several paths). Falls back to procedural gun.
  */
 
 import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
-const M4_URL = "/models/m4.glb";
+const M4_URLS = [
+  "/models/m4.glb",
+  "/models/M4.glb",
+  "/m4.glb",
+  "/weapons/m4.glb",
+];
 
 const REST = {
   position: new THREE.Vector3(0.28, -0.32, -0.55),
@@ -92,18 +97,29 @@ export function createWeaponView({ camera, renderer }) {
   }
 
   async function load() {
+    const loader = new GLTFLoader();
     try {
-      const loader = new GLTFLoader();
-      try {
-        const { DRACOLoader } = await import("three/addons/loaders/DRACOLoader.js");
-        const draco = new DRACOLoader();
-        draco.setDecoderPath("/libs/draco/");
-        loader.setDRACOLoader(draco);
-      } catch {
-        /* optional */
-      }
+      const { DRACOLoader } = await import("three/addons/loaders/DRACOLoader.js");
+      const draco = new DRACOLoader();
+      draco.setDecoderPath("/libs/draco/");
+      loader.setDRACOLoader(draco);
+    } catch {
+      /* optional */
+    }
 
-      const gltf = await loader.loadAsync(M4_URL);
+    let gltf = null;
+    let usedUrl = null;
+    for (const url of M4_URLS) {
+      try {
+        gltf = await loader.loadAsync(url);
+        usedUrl = url;
+        break;
+      } catch {
+        /* try next */
+      }
+    }
+
+    if (gltf) {
       model = gltf.scene;
       model.traverse((c) => {
         if (c.isMesh) {
@@ -115,16 +131,16 @@ export function createWeaponView({ camera, renderer }) {
       fitModel(model);
       pivot.add(model);
       loaded = true;
-      console.info("[weapon-view] Loaded", M4_URL);
-    } catch (err) {
-      console.warn(
-        "[weapon-view] Failed to load m4.glb — using fallback. Copy to public/models/m4.glb",
-        err?.message ?? err,
-      );
-      model = buildFallback();
-      pivot.add(model);
-      loaded = true;
+      console.info("[weapon-view] Loaded", usedUrl);
+      return;
     }
+
+    console.warn(
+      "[weapon-view] m4.glb not found — using procedural gun. Copy to public/models/m4.glb",
+    );
+    model = buildFallback();
+    pivot.add(model);
+    loaded = true;
   }
 
   const loadPromise = load();
