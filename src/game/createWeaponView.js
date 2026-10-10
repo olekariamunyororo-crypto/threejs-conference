@@ -1,32 +1,30 @@
 /**
  * First-person weapon viewmodel — parented to the camera.
- * Prefers benelli_m4.glb (gun + hands + anims), then m4 + arms, then procedural.
+ * Prefers benelli_m4.glb (gun + hands), then m4 + arms, then procedural.
  */
 
 import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
-/** Full viewmodels (weapon + hands in one file) — preferred. */
 const VIEWMODEL_URLS = [
   "/models/benelli_m4.glb",
   "/models/benelli.glb",
 ];
 
-/** Gun-only fallbacks */
 const M4_URLS = ["/models/m4.glb", "/models/M4.glb", "/m4.glb"];
-
-/** Separate arms if using gun-only model */
 const ARMS_URLS = ["/models/arms.glb", "/models/fp-arms.glb", "/arms.glb"];
 
+/** Lower-right, small so it never fills the FOV. */
 const REST = {
-  position: new THREE.Vector3(0.18, -0.2, -0.36),
-  rotation: new THREE.Euler(0.04, 0.04, 0.02),
+  position: new THREE.Vector3(0.25, -0.28, -0.55),
+  rotation: new THREE.Euler(0.05, 0.08, 0.03),
   scale: 1,
 };
 
-const VIEWMODEL_TARGET_SIZE = 0.85;
-const GUN_TARGET_SIZE = 0.75;
-const ARMS_TARGET_SIZE = 0.42;
+/** Benelli was huge — keep this small. */
+const VIEWMODEL_TARGET_SIZE = 0.35;
+const GUN_TARGET_SIZE = 0.7;
+const ARMS_TARGET_SIZE = 0.4;
 
 const ARMS_POSE = {
   position: new THREE.Vector3(0.05, -0.12, 0.15),
@@ -34,8 +32,8 @@ const ARMS_POSE = {
 };
 
 const RECOIL = {
-  kickZ: 0.055,
-  kickX: -0.045,
+  kickZ: 0.04,
+  kickX: -0.03,
   recover: 14,
 };
 
@@ -88,24 +86,55 @@ export function createWeaponView({ camera }) {
   }
 
   function fitObject(object, targetSize) {
+    // Reset any author scale first
+    object.scale.set(1, 1, 1);
+    object.updateMatrixWorld(true);
+
     const box = new THREE.Box3().setFromObject(object);
     const size = new THREE.Vector3();
     box.getSize(size);
     const longest = Math.max(size.x, size.y, size.z, 0.001);
-    object.scale.setScalar(targetSize / longest);
+    const s = targetSize / longest;
+    object.scale.setScalar(s);
+
+    object.updateMatrixWorld(true);
     box.setFromObject(object);
     const center = new THREE.Vector3();
     box.getCenter(center);
     object.position.sub(center);
   }
 
+  /**
+   * Camera-attached meshes often get no scene lights → pure black.
+   * Convert to Basic materials (keep maps) so the gun stays visible.
+   */
   function prepareMeshes(object) {
     object.traverse((c) => {
-      if (c.isMesh) {
-        c.castShadow = false;
-        c.receiveShadow = false;
-        c.frustumCulled = false;
-      }
+      if (!c.isMesh) return;
+      c.castShadow = false;
+      c.receiveShadow = false;
+      c.frustumCulled = false;
+      c.renderOrder = 999;
+
+      const mats = Array.isArray(c.material) ? c.material : [c.material];
+      const next = mats.map((m) => {
+        if (!m) return m;
+        try {
+          const basic = new THREE.MeshBasicNodeMaterial();
+          if (m.map) basic.map = m.map;
+          if (m.color) basic.color = m.color.clone?.() ?? m.color;
+          else basic.color = new THREE.Color(0x888888);
+          if (m.transparent != null) basic.transparent = m.transparent;
+          if (m.opacity != null) basic.opacity = m.opacity;
+          if (m.side != null) basic.side = m.side;
+          basic.depthTest = true;
+          basic.depthWrite = true;
+          return basic;
+        } catch {
+          return m;
+        }
+      });
+      c.material = Array.isArray(c.material) ? next : next[0];
     });
   }
 
@@ -115,17 +144,17 @@ export function createWeaponView({ camera }) {
     for (const clip of gltf.animations) {
       const name = clip.name.toLowerCase();
       actions[name] = mixer.clipAction(clip);
-      // Prefer idle / rest if present
-      if (name.includes("idle") || name.includes("rest") || name.includes("hold")) {
-        actions[name].play();
-      }
     }
-    // If nothing is playing, play the first clip looping quietly
-    const playing = Object.values(actions).some((a) => a.isRunning());
-    if (!playing && gltf.animations[0]) {
-      const a = mixer.clipAction(gltf.animations[0]);
-      a.play();
-      actions[gltf.animations[0].name.toLowerCase()] = a;
+    // Only auto-play a gentle idle — avoid huge fire poses on load
+    const idleKey = Object.keys(actions).find(
+      (k) =>
+        k.includes("idle") ||
+        k.includes("rest") ||
+        k.includes("hold") ||
+        k.includes("draw"),
+    );
+    if (idleKey) {
+      actions[idleKey].play();
     }
     console.info(
       "[weapon-view] Animations:",
@@ -174,14 +203,14 @@ export function createWeaponView({ camera }) {
   async function load() {
     const loader = await makeLoader();
 
-    // 1) Preferred: full viewmodel (Benelli + hands)
     const vm = await tryLoad(loader, VIEWMODEL_URLS);
     if (vm) {
       model = vm.gltf.scene;
       prepareMeshes(model);
       fitObject(model, VIEWMODEL_TARGET_SIZE);
-      model.position.z += 0.04;
-      model.position.y -= 0.02;
+      // Keep lower-right; don't cover the world
+      model.position.y -= 0.05;
+      model.position.z += 0.08;
       pivot.add(model);
       setupAnimations(vm.gltf, model);
       loaded = true;
@@ -189,7 +218,6 @@ export function createWeaponView({ camera }) {
       return;
     }
 
-    // 2) Fallback: separate gun + arms
     const gunResult = await tryLoad(loader, M4_URLS);
     if (gunResult) {
       model = gunResult.gltf.scene;
