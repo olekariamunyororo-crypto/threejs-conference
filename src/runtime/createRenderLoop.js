@@ -12,6 +12,7 @@ export function createRenderLoop({
   getRainGlassIntro,
   getIntroActive,
   onFrame,
+  game = null,
 }) {
   const timer = new THREE.Timer();
 
@@ -20,11 +21,15 @@ export function createRenderLoop({
     const delta = timer.getDelta();
 
     cameraDirector.update(delta);
+    game?.update?.(delta);
     onFrame?.(delta);
 
     world.collisionHeight?.update({
       camera,
-      hideObjects: collectCollisionHideObjects(world),
+      hideObjects: collectCollisionHideObjects(
+        world,
+        game?.enemies?.group ? [game.enemies.group] : [],
+      ),
     });
     world.rain?.update(delta, camera);
 

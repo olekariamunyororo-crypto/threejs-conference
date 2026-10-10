@@ -1,0 +1,222 @@
+.fps-game-hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  font-family: system-ui, sans-serif;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.fps-game-hud.is-visible { opacity: 1; }
+.fps-game-hud__vitals {
+  position: absolute;
+  left: 1.25rem;
+  bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 200px;
+}
+.fps-game-hud__bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.fps-game-hud__bar-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(34, 211, 238, 0.85);
+  width: 3.2rem;
+}
+.fps-game-hud__bar-track {
+  flex: 1;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.fps-game-hud__bar-fill {
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  transition: transform 0.15s ease-out;
+}
+.fps-game-hud__bar-fill--hp {
+  background: linear-gradient(90deg, #ff2d6a, #fb7185);
+}
+.fps-game-hud__bar-fill--armor {
+  background: linear-gradient(90deg, #22d3ee, #67e8f9);
+}
+.fps-game-hud__bar-value {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+  min-width: 2.2rem;
+  text-align: right;
+}
+.fps-game-hud__ammo {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 1.5rem;
+  text-align: right;
+}
+.fps-game-hud__ammo-mag {
+  font-size: 2.4rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #f8fafc;
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(168, 85, 247, 0.5);
+}
+.fps-game-hud__ammo-mag.is-low {
+  color: #ff2d6a;
+  animation: fps-ammo-pulse 0.6s ease infinite alternate;
+}
+.fps-game-hud__ammo-reserve {
+  font-size: 0.9rem;
+  color: rgba(148, 163, 184, 0.9);
+}
+.fps-game-hud__ammo-weapon {
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(34, 211, 238, 0.75);
+  margin-top: 0.25rem;
+}
+.fps-game-hud__reload {
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #a855f7;
+  margin-top: 0.35rem;
+  opacity: 0;
+}
+.fps-game-hud__reload.is-active {
+  opacity: 1;
+  animation: fps-reload-blink 0.5s ease infinite alternate;
+}
+.fps-game-hud__score {
+  position: absolute;
+  top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 1.5rem;
+  padding: 0.4rem 1rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  border-radius: 4px;
+}
+.fps-game-hud__score-label {
+  font-size: 0.55rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.8);
+}
+.fps-game-hud__score-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+.fps-game-hud__hitmarker {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+}
+.fps-game-hud__hitmarker.is-active {
+  opacity: 1;
+  animation: fps-hitmarker 0.2s ease-out forwards;
+}
+.fps-game-hud__hitmarker::before,
+.fps-game-hud__hitmarker::after {
+  content: "";
+  position: absolute;
+  background: #ff2d6a;
+  box-shadow: 0 0 6px #ff2d6a;
+}
+.fps-game-hud__hitmarker::before {
+  width: 10px;
+  height: 2px;
+  left: 0;
+  top: 13px;
+  box-shadow: 10px 0 0 #ff2d6a, 0 0 6px #ff2d6a, 10px 0 6px #ff2d6a;
+}
+.fps-game-hud__hitmarker::after {
+  width: 2px;
+  height: 10px;
+  left: 13px;
+  top: 0;
+  box-shadow: 0 10px 0 #ff2d6a, 0 0 6px #ff2d6a, 0 10px 6px #ff2d6a;
+}
+.fps-game-hud__damage {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(255, 20, 60, 0.55) 100%);
+  opacity: 0;
+  transition: opacity 0.12s ease-out;
+}
+.fps-game-hud__damage.is-active { opacity: 1; }
+.fps-game-hud__death {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+.fps-game-hud__death.is-active {
+  opacity: 1;
+  pointer-events: auto;
+}
+.fps-game-hud__death-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #ff2d6a;
+  margin-bottom: 0.5rem;
+}
+.fps-game-hud__death-sub {
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  color: rgba(226, 232, 240, 0.8);
+  margin-bottom: 1.5rem;
+}
+.fps-game-hud__death-btn {
+  pointer-events: auto;
+  padding: 0.65rem 1.8rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #0f172a;
+  background: linear-gradient(135deg, #22d3ee, #a855f7);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+@keyframes fps-ammo-pulse {
+  from { opacity: 1; }
+  to { opacity: 0.45; }
+}
+@keyframes fps-reload-blink {
+  from { opacity: 1; }
+  to { opacity: 0.4; }
+}
+@keyframes fps-hitmarker {
+  0% { transform: translate(-50%, -50%) scale(0.6); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1.3); opacity: 0; }
+}
+@media (max-width: 640px) {
+  .fps-game-hud__vitals { left: 0.75rem; bottom: 5.5rem; min-width: 160px; }
+  .fps-game-hud__ammo { right: 0.75rem; bottom: 5.5rem; }
+  .fps-game-hud__ammo-mag { font-size: 1.8rem; }
+}
