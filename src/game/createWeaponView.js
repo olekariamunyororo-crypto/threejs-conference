@@ -12,19 +12,17 @@ const M4_URLS = [
   "/weapons/m4.glb",
 ];
 
-/**
- * Camera-local rest pose.
- * Y = 0: barrel should aim down camera -Z (into the world).
- * If a specific GLB is still wrong, we flip it in fitModel.
- */
 const REST = {
   position: new THREE.Vector3(0.28, -0.26, -0.42),
   rotation: new THREE.Euler(0.02, 0, 0.04),
   scale: 1,
 };
 
-/** Extra rotation applied only to loaded GLBs (not procedural fallback). */
-const GLB_ORIENT = new THREE.Euler(0, Math.PI, 0);
+/**
+ * Extra rotation applied only to loaded GLBs.
+ * Y = 0 keeps authoring forward axis; previous Math.PI had the stock facing the world.
+ */
+const GLB_ORIENT = new THREE.Euler(0, 0, 0);
 
 const RECOIL = {
   kickZ: 0.045,
@@ -82,7 +80,6 @@ export function createWeaponView({ camera }) {
   }
 
   function fitModel(object) {
-    // Orient so barrel points down -Z (into the scene)
     object.rotation.copy(GLB_ORIENT);
 
     const box = new THREE.Box3().setFromObject(object);
@@ -92,13 +89,11 @@ export function createWeaponView({ camera }) {
     const s = 0.75 / longest;
     object.scale.setScalar(s * REST.scale);
 
-    // Recompute bounds after scale+rotation
     box.setFromObject(object);
     const center = new THREE.Vector3();
     box.getCenter(center);
     object.position.sub(center);
 
-    // Nudge so grip sits lower-right, barrel forward
     object.position.z += 0.05;
     object.position.y -= 0.02;
   }
