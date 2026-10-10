@@ -1,12 +1,11 @@
 /**
- * Player combat state: health, armor, ammo, invulnerability frames.
- * Pure data + methods — no rendering.
+ * Player combat state: health, armor, invulnerability frames.
  */
 
 const DEFAULTS = {
   maxHealth: 100,
   maxArmor: 50,
-  invulnDuration: 0.6,
+  invulnDuration: 0.7,
   regenDelay: 6,
   regenPerSecond: 4,
 };
@@ -17,10 +16,10 @@ export function createPlayer(overrides = {}) {
   const state = {
     health: cfg.maxHealth,
     maxHealth: cfg.maxHealth,
-    armor: 0,
+    armor: 30,
     maxArmor: cfg.maxArmor,
     alive: true,
-    invulnTimer: 0,
+    invulnTimer: 6,
     timeSinceDamage: 0,
     kills: 0,
     deaths: 0,
@@ -47,7 +46,7 @@ export function createPlayer(overrides = {}) {
       state.deaths += 1;
     }
 
-    return amount - remaining + (amount > remaining ? remaining : 0);
+    return amount;
   }
 
   function heal(amount) {
@@ -61,9 +60,9 @@ export function createPlayer(overrides = {}) {
 
   function respawn() {
     state.health = state.maxHealth;
-    state.armor = 0;
+    state.armor = 30;
     state.alive = true;
-    state.invulnTimer = 1.5;
+    state.invulnTimer = 5;
     state.timeSinceDamage = 0;
   }
 
