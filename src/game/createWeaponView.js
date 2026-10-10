@@ -1,6 +1,5 @@
 /**
  * First-person M4 + left arm grip — parented to the camera.
- * Pose tuned to look like a classic FPS hold (left hand on handguard).
  */
 
 import * as THREE from "three/webgpu";
@@ -13,13 +12,9 @@ const M4_URLS = [
   "/weapons/m4.glb",
 ];
 
-/**
- * Camera-local rest pose — gun lower-right, barrel into the world (-Z).
- * Tuned to leave room for the left arm on the left side of the frame.
- */
 const REST = {
-  position: new THREE.Vector3(0.18, -0.22, -0.38),
-  rotation: new THREE.Euler(0.08, 0.12, 0.06),
+  position: new THREE.Vector3(0.22, -0.24, -0.40),
+  rotation: new THREE.Euler(0.06, 0.08, 0.04),
   scale: 1,
 };
 
@@ -48,7 +43,6 @@ export function createWeaponView({ camera }) {
   let bobPhase = 0;
   let visible = true;
 
-  // Left arm is always present (procedural)
   const leftArm = buildLeftArm();
   pivot.add(leftArm);
 
@@ -85,94 +79,68 @@ export function createWeaponView({ camera }) {
   }
 
   /**
-   * Stylized left arm: sleeve → forearm → glove hand on the handguard.
-   * Coordinates are relative to the weapon pivot (gun local space).
+   * Compact left-hand grip only — sleeve peeks from bottom-left,
+   * glove rests on the handguard. Kept small so it never fills the FOV.
    */
   function buildLeftArm() {
     const arm = new THREE.Group();
     arm.name = "fp-left-arm";
 
-    // Colors matching the reference (dark sleeve, glove)
-    const sleeveMat = new THREE.MeshBasicNodeMaterial({ color: 0x2c3540 });
-    const gloveMat = new THREE.MeshBasicNodeMaterial({ color: 0x1a1e24 });
-    const skinMat = new THREE.MeshBasicNodeMaterial({ color: 0x8d6e5a });
-    const watchMat = new THREE.MeshBasicNodeMaterial({ color: 0x111111 });
-    const watchFace = new THREE.MeshBasicNodeMaterial({ color: 0xc8c8c8 });
+    const sleeveMat = new THREE.MeshBasicNodeMaterial({ color: 0x3a4555 });
+    const gloveMat = new THREE.MeshBasicNodeMaterial({ color: 0x1c222b });
+    const accentMat = new THREE.MeshBasicNodeMaterial({ color: 0x5a4a2a }); // watch band
 
-    // Upper sleeve (coming from bottom-left of camera)
+    // Forearm sleeve — short segment coming from bottom-left toward the gun
     const sleeve = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.055, 0.065, 0.28, 8),
+      new THREE.CapsuleGeometry(0.028, 0.11, 4, 8),
       sleeveMat,
     );
-    sleeve.rotation.z = Math.PI / 2;
-    sleeve.rotation.y = -0.35;
-    sleeve.position.set(-0.22, -0.08, 0.05);
+    sleeve.rotation.z = 1.15;
+    sleeve.rotation.x = 0.35;
+    sleeve.position.set(-0.12, -0.09, 0.02);
     arm.add(sleeve);
 
-    // Forearm
-    const forearm = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.04, 0.05, 0.22, 8),
-      sleeveMat,
+    // Wrist / cuff
+    const cuff = new THREE.Mesh(
+      new THREE.TorusGeometry(0.03, 0.008, 6, 10),
+      accentMat,
     );
-    forearm.rotation.z = Math.PI / 2;
-    forearm.rotation.y = -0.15;
-    forearm.position.set(-0.05, -0.06, -0.02);
-    arm.add(forearm);
+    cuff.rotation.y = Math.PI / 2;
+    cuff.position.set(-0.02, -0.05, -0.04);
+    arm.add(cuff);
 
-    // Watch on wrist
-    const watch = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.042, 0.042, 0.03, 12),
-      watchMat,
-    );
-    watch.rotation.z = Math.PI / 2;
-    watch.position.set(0.04, -0.05, -0.06);
-    arm.add(watch);
-    const face = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.028, 0.028, 0.008, 12),
-      watchFace,
-    );
-    face.rotation.z = Math.PI / 2;
-    face.position.set(0.04, -0.035, -0.06);
-    arm.add(face);
-
-    // Glove / hand gripping the handguard
+    // Palm on handguard
     const palm = new THREE.Mesh(
-      new THREE.BoxGeometry(0.07, 0.045, 0.09),
+      new THREE.BoxGeometry(0.055, 0.03, 0.07),
       gloveMat,
     );
-    palm.position.set(0.12, -0.04, -0.12);
-    palm.rotation.y = 0.2;
-    palm.rotation.z = -0.25;
+    palm.position.set(0.04, -0.035, -0.10);
+    palm.rotation.x = -0.2;
+    palm.rotation.z = -0.35;
+    palm.rotation.y = 0.15;
     arm.add(palm);
 
-    // Fingers curled over the rail
-    const fingerGeo = new THREE.BoxGeometry(0.018, 0.025, 0.06);
+    // Four fingers over the rail
     for (let i = 0; i < 4; i++) {
-      const f = new THREE.Mesh(fingerGeo, gloveMat);
-      f.position.set(0.1 + i * 0.018, -0.01, -0.16);
-      f.rotation.x = -0.9;
-      f.rotation.z = -0.15;
-      arm.add(f);
+      const finger = new THREE.Mesh(
+        new THREE.CapsuleGeometry(0.007, 0.028, 3, 6),
+        gloveMat,
+      );
+      finger.position.set(0.02 + i * 0.014, -0.015, -0.145);
+      finger.rotation.x = 1.1;
+      finger.rotation.z = -0.1;
+      arm.add(finger);
     }
 
-    // Thumb
+    // Thumb along the side
     const thumb = new THREE.Mesh(
-      new THREE.BoxGeometry(0.02, 0.025, 0.05),
+      new THREE.CapsuleGeometry(0.008, 0.025, 3, 6),
       gloveMat,
     );
-    thumb.position.set(0.08, -0.02, -0.1);
-    thumb.rotation.y = 0.6;
-    thumb.rotation.x = -0.3;
+    thumb.position.set(-0.01, -0.02, -0.09);
+    thumb.rotation.y = 0.9;
+    thumb.rotation.x = 0.4;
     arm.add(thumb);
-
-    // Small wrist skin band between sleeve and glove
-    const wrist = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.038, 0.038, 0.02, 8),
-      skinMat,
-    );
-    wrist.rotation.z = Math.PI / 2;
-    wrist.position.set(0.02, -0.05, -0.05);
-    arm.add(wrist);
 
     return arm;
   }
@@ -184,8 +152,7 @@ export function createWeaponView({ camera }) {
     const size = new THREE.Vector3();
     box.getSize(size);
     const longest = Math.max(size.x, size.y, size.z, 0.001);
-    // Slightly larger than before so the handguard meets the hand
-    const s = 0.85 / longest;
+    const s = 0.8 / longest;
     object.scale.setScalar(s * REST.scale);
 
     box.setFromObject(object);
@@ -193,10 +160,8 @@ export function createWeaponView({ camera }) {
     box.getCenter(center);
     object.position.sub(center);
 
-    // Shift so handguard sits near the left-hand grip point
     object.position.z += 0.02;
     object.position.y -= 0.01;
-    object.position.x += 0.02;
   }
 
   async function load() {
