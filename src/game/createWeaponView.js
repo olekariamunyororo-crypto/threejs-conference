@@ -9,19 +9,21 @@ const M4_URLS = ["/models/m4.glb", "/models/M4.glb", "/m4.glb"];
 const ARMS_URLS = ["/models/arms.glb", "/models/fp-arms.glb", "/arms.glb"];
 
 const REST = {
-  position: new THREE.Vector3(0.2, -0.22, -0.38),
-  rotation: new THREE.Euler(0.05, 0.06, 0.03),
+  position: new THREE.Vector3(0.22, -0.24, -0.42),
+  rotation: new THREE.Euler(0.05, 0.05, 0.02),
   scale: 1,
 };
 
 const GLB_ORIENT = new THREE.Euler(0, 0, 0);
 
-/** Arms pose relative to the weapon pivot — tweak if hands miss the gun. */
+/**
+ * Arms pose relative to the weapon pivot.
+ * WRAD arms are full viewmodel scale — keep them small so they don't fill the FOV.
+ */
 const ARMS_POSE = {
-  position: new THREE.Vector3(-0.05, -0.08, 0.08),
-  rotation: new THREE.Euler(0.1, 0.15, 0.05),
-  /** Target length of arms in camera space after fit */
-  targetSize: 0.9,
+  position: new THREE.Vector3(0.05, -0.12, 0.15),
+  rotation: new THREE.Euler(0.15, 0.0, 0.0),
+  targetSize: 0.42,
 };
 
 const RECOIL = {
@@ -119,7 +121,6 @@ export function createWeaponView({ camera }) {
   async function load() {
     const loader = await makeLoader();
 
-    // --- M4 ---
     const gunResult = await tryLoad(loader, M4_URLS);
     if (gunResult) {
       model = gunResult.gltf.scene;
@@ -130,7 +131,7 @@ export function createWeaponView({ camera }) {
           c.frustumCulled = false;
         }
       });
-      fitObject(model, 0.8);
+      fitObject(model, 0.75);
       model.position.z += 0.02;
       pivot.add(model);
       console.info("[weapon-view] Loaded gun", gunResult.url);
@@ -140,7 +141,6 @@ export function createWeaponView({ camera }) {
       pivot.add(model);
     }
 
-    // --- Arms ---
     const armsResult = await tryLoad(loader, ARMS_URLS);
     if (armsResult) {
       arms = armsResult.gltf.scene;
