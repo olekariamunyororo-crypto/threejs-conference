@@ -22,8 +22,8 @@ const REST = {
 };
 
 /** Benelli was huge — keep this small. */
-const VIEWMODEL_TARGET_SIZE = 0.35;
-const GUN_TARGET_SIZE = 0.7;
+const VIEWMODEL_TARGET_SIZE = 0.55;
+const GUN_TARGET_SIZE = 0.85;
 const ARMS_TARGET_SIZE = 0.4;
 
 const ARMS_POSE = {
