@@ -1,23 +1,23 @@
 /**
  * Simple cyberpunk drone enemies.
- * Patrol / chase AI, take damage, die with a short flash, then respawn.
  */
 
 import * as THREE from "three/webgpu";
 
 const ENEMY_DEFAULTS = {
-  count: 8,
+  count: 5,
   health: 80,
-  speed: 2.8,
-  chaseSpeed: 4.2,
-  aggroRange: 28,
-  attackRange: 14,
-  attackDamage: 12,
-  attackCooldown: 1.4,
-  respawnDelay: 5,
+  speed: 2.2,
+  chaseSpeed: 3.2,
+  aggroRange: 14,
+  attackRange: 9,
+  attackDamage: 4,
+  attackCooldown: 2.4,
+  respawnDelay: 7,
   bodyRadius: 0.55,
   bodyHeight: 1.6,
   eyeHeight: 1.4,
+  combatGrace: 6,
 };
 
 function randomInAnnulus(minR, maxR) {
@@ -29,11 +29,10 @@ function randomInAnnulus(minR, maxR) {
 export function createEnemies({
   scene,
   spawnCenter = new THREE.Vector3(0, 0, 0),
-  spawnRadius = { min: 8, max: 35 },
+  spawnRadius = { min: 22, max: 48 },
   settings: settingsOverrides = {},
 } = {}) {
   const cfg = { ...ENEMY_DEFAULTS, ...settingsOverrides };
-
   const group = new THREE.Group();
   group.name = "fps-enemies";
   scene.add(group);
@@ -42,6 +41,7 @@ export function createEnemies({
   const hitTargets = [];
   const _toPlayer = new THREE.Vector3();
   const _move = new THREE.Vector3();
+  let combatTimer = 0;
 
   const bodyMat = new THREE.MeshStandardNodeMaterial({
     color: 0xff2d6a,
@@ -72,11 +72,9 @@ export function createEnemies({
     body.position.y = cfg.bodyHeight * 0.5;
     body.castShadow = true;
     root.add(body);
-
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), eyeMat);
     eye.position.set(0, cfg.eyeHeight, cfg.bodyRadius * 0.75);
     root.add(eye);
-
     root.userData.isEnemy = true;
     root.userData.bodyMesh = body;
     root.userData.eyeMesh = eye;
@@ -93,7 +91,6 @@ export function createEnemies({
     const pos = spawnPosition();
     mesh.position.set(pos.x, 0, pos.z);
     group.add(mesh);
-
     const enemy = {
       id: i,
       mesh,
@@ -156,6 +153,9 @@ export function createEnemies({
 
   function update(delta, playerPosition) {
     let damageToPlayer = 0;
+    combatTimer += delta;
+    const combatOpen = combatTimer >= (cfg.combatGrace ?? 0);
+
     for (const enemy of enemies) {
       if (!enemy.alive) {
         enemy.respawnTimer -= delta;
@@ -169,7 +169,9 @@ export function createEnemies({
       _toPlayer.subVectors(playerPosition, enemy.mesh.position);
       _toPlayer.y = 0;
       const dist = _toPlayer.length();
-      if (dist < cfg.attackRange) enemy.state = "attack";
+
+      if (!combatOpen) enemy.state = "patrol";
+      else if (dist < cfg.attackRange) enemy.state = "attack";
       else if (dist < cfg.aggroRange) enemy.state = "chase";
       else enemy.state = "patrol";
 
@@ -185,7 +187,7 @@ export function createEnemies({
           enemy.mesh.position.x += _toPlayer.x * spd * delta;
           enemy.mesh.position.z += _toPlayer.z * spd * delta;
         }
-        if (enemy.state === "attack") {
+        if (enemy.state === "attack" && combatOpen) {
           enemy.attackTimer -= delta;
           if (enemy.attackTimer <= 0 && dist < cfg.attackRange) {
             damageToPlayer += cfg.attackDamage;
@@ -222,14 +224,7 @@ export function createEnemies({
   }
 
   return {
-    group,
-    enemies,
-    hitTargets,
-    findEnemyByObject,
-    damageEnemy,
-    update,
-    getAliveCount,
-    dispose,
-    cfg,
+    group, enemies, hitTargets, findEnemyByObject, damageEnemy,
+    update, getAliveCount, dispose, cfg,
   };
 }
