@@ -45,6 +45,8 @@ import {
   DEFAULT_LOOK_PRESET,
   LOOK_PRESETS,
 } from "./post/look/cyberpunkLook.js";
+import { FEATURES } from "./world/features.js";
+import { createGame } from "./game/createGame.js";
 
 const loader = createLoaderOverlay();
 
@@ -54,7 +56,6 @@ init(loader).catch((error) => {
 });
 
 async function init(loaderOverlay) {
-  // Must run before createRenderer so the initial setPixelRatio sees iOS caps.
   applyDevicePerformanceDefaults();
   syncLayoutClass();
 
@@ -130,9 +131,6 @@ async function init(loaderOverlay) {
   const adaptiveDpr = createAdaptiveDprController({
     renderer,
     pipeline,
-    // Once FPS forces the pixel ratio down, also shed DOF, lensflare, and
-    // billboard video decode — all comparatively expensive once we know the
-    // device is struggling.
     onForcedLow: () => {
       performanceProfile.dof = false;
       pipeline.perf.setDofEnabled(false);
@@ -143,8 +141,6 @@ async function init(loaderOverlay) {
   });
   adaptiveDpr.onResize();
 
-  // Adaptive DPR must not react to intro / rain-glass FPS — that hitch was
-  // permanently locking capable Androids into the low-DPR path before ENTER.
   const adaptiveSampleGate = { allow: false };
 
   const performanceTools = createPerformanceDevTools({
@@ -215,6 +211,17 @@ async function init(loaderOverlay) {
 
   cameraDirector.preparePreRevealPose();
 
+  const game = FEATURES.fpsCombat
+    ? createGame({
+        scene,
+        camera,
+        renderer,
+        getWalkControls: () => cameraDirector.walkControls,
+        getFinishedIntro: () => appShell?.isFinishedIntro?.() ?? false,
+        spawnCenter: camera.position.clone(),
+      })
+    : null;
+
   const introFlow = createIntroFlow({
     pipeline,
     renderer,
@@ -222,6 +229,7 @@ async function init(loaderOverlay) {
     revealAppUi: () => {
       appShell.revealAppUi();
       adaptiveSampleGate.allow = true;
+      game?.setActive(true);
     },
     world,
   });
@@ -237,6 +245,7 @@ async function init(loaderOverlay) {
     getRainGlassIntro: introFlow.getRainGlassIntro,
     getIntroActive: introFlow.isIntroActive,
     onFrame: (delta) => appShell.updateHud(delta),
+    game,
   });
 
   await finalizeStartupLighting({
@@ -285,7 +294,6 @@ async function init(loaderOverlay) {
     await deferredCompile;
   }
 
-  // Inspector attaches only via Development Mode (never on load).
   inspectorSession.bootstrapInspector(appShell.settingsPanel);
 
   if (isDevelopmentModeEnabled()) {
