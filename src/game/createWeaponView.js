@@ -86,7 +86,6 @@ export function createWeaponView({ camera }) {
   }
 
   function fitObject(object, targetSize) {
-    // Reset any author scale first
     object.scale.set(1, 1, 1);
     object.updateMatrixWorld(true);
 
@@ -104,10 +103,6 @@ export function createWeaponView({ camera }) {
     object.position.sub(center);
   }
 
-  /**
-   * Camera-attached meshes often get no scene lights → pure black.
-   * Convert to Basic materials (keep maps) so the gun stays visible.
-   */
   function prepareMeshes(object) {
     object.traverse((c) => {
       if (!c.isMesh) return;
@@ -145,7 +140,6 @@ export function createWeaponView({ camera }) {
       const name = clip.name.toLowerCase();
       actions[name] = mixer.clipAction(clip);
     }
-    // Only auto-play a gentle idle — avoid huge fire poses on load
     const idleKey = Object.keys(actions).find(
       (k) =>
         k.includes("idle") ||
@@ -208,30 +202,39 @@ export function createWeaponView({ camera }) {
       model = vm.gltf.scene;
       prepareMeshes(model);
       fitObject(model, VIEWMODEL_TARGET_SIZE);
-      // Keep lower-right; don't cover the world
+
+      // Spin 180° — stock to player, barrel forward
+      model.rotation.y += Math.PI;
+
       model.position.y -= 0.05;
       model.position.z += 0.08;
       pivot.add(model);
       setupAnimations(vm.gltf, model);
       loaded = true;
       console.info("[weapon-view] Loaded viewmodel", vm.url);
-      return;
     }
 
-    const gunResult = await tryLoad(loader, M4_URLS);
-    if (gunResult) {
-      model = gunResult.gltf.scene;
-      prepareMeshes(model);
-      fitObject(model, GUN_TARGET_SIZE);
-      model.position.z += 0.02;
-      pivot.add(model);
-      console.info("[weapon-view] Loaded gun", gunResult.url);
-    } else {
-      console.warn("[weapon-view] No gun GLB — procedural");
-      model = buildFallbackGun();
-      pivot.add(model);
+    if (!model) {
+      const gunResult = await tryLoad(loader, M4_URLS);
+      if (gunResult) {
+        model = gunResult.gltf.scene;
+        prepareMeshes(model);
+        fitObject(model, GUN_TARGET_SIZE);
+
+        // Spin 180° — stock to player, barrel forward
+        model.rotation.y += Math.PI;
+
+        model.position.z += 0.02;
+        pivot.add(model);
+        console.info("[weapon-view] Loaded gun", gunResult.url);
+      } else {
+        console.warn("[weapon-view] No gun GLB — procedural");
+        model = buildFallbackGun();
+        pivot.add(model);
+      }
     }
 
+    // Always try to show arms
     const armsResult = await tryLoad(loader, ARMS_URLS);
     if (armsResult) {
       arms = armsResult.gltf.scene;
