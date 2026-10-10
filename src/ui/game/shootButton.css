@@ -1,0 +1,87 @@
+.fps-shoot-btn {
+  position: fixed;
+  right: 1.35rem;
+  bottom: 7.5rem;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 45, 160, 0.85);
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 120, 200, 0.45), transparent 55%),
+    radial-gradient(circle at 50% 50%, rgba(255, 20, 120, 0.55), rgba(80, 0, 40, 0.75));
+  box-shadow:
+    0 0 18px rgba(255, 45, 160, 0.65),
+    0 0 40px rgba(255, 20, 120, 0.35),
+    inset 0 0 12px rgba(255, 180, 220, 0.25);
+  z-index: 45;
+  pointer-events: auto;
+  touch-action: none;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.08s ease, box-shadow 0.12s ease, opacity 0.25s ease;
+  opacity: 0;
+}
+
+.fps-shoot-btn.is-visible {
+  display: flex;
+  opacity: 1;
+}
+
+.fps-shoot-btn:active,
+.fps-shoot-btn.is-pressed {
+  transform: scale(0.92);
+  box-shadow:
+    0 0 28px rgba(255, 45, 160, 0.95),
+    0 0 60px rgba(255, 20, 120, 0.55),
+    inset 0 0 18px rgba(255, 200, 230, 0.4);
+  border-color: #ff9ed5;
+}
+
+.fps-shoot-btn__ring {
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 180, 220, 0.5);
+  pointer-events: none;
+}
+
+.fps-shoot-btn__icon {
+  width: 28px;
+  height: 28px;
+  color: #fff;
+  filter: drop-shadow(0 0 6px rgba(255, 45, 160, 0.9));
+  pointer-events: none;
+}
+
+.fps-shoot-btn__label {
+  position: absolute;
+  bottom: -1.15rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.55rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 150, 200, 0.9);
+  text-shadow: 0 0 8px rgba(255, 45, 160, 0.7);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (pointer: fine) and (min-width: 900px) {
+  .fps-shoot-btn.is-desktop-hidden {
+    display: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .fps-shoot-btn {
+    right: 1rem;
+    bottom: 6.75rem;
+    width: 72px;
+    height: 72px;
+  }
+}
