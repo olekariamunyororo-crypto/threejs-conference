@@ -32,6 +32,8 @@ export const FEATURES = {
   gameWalk: true,
   /** Full combat layer: enemies, weapon, health, game HUD */
   fpsCombat: true,
+  /** IgnitionAI enemy training / inference (dev). Requires `npm install ignitionai`. */
+  trainEnemies: false,
 };
 
 export const STRIP_ORDER = [
